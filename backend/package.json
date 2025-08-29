@@ -1,0 +1,31 @@
+{
+    "name": "streaming-backend",
+    "version": "1.0.0",
+    "description": "Backend para sistema de streaming",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node server.js"
+    },
+    "dependencies": {
+        "basic-ftp": "^5.0.5",
+        "bcrypt": "^6.0.0",
+        "compression": "^1.7.4",
+        "cors": "^2.8.5",
+        "digest-fetch": "^2.0.1",
+        "express": "^4.18.2",
+        "express-rate-limit": "^8.0.1",
+        "fluent-ffmpeg": "^2.1.2",
+        "helmet": "^8.1.0",
+        "jsonwebtoken": "^9.0.2",
+        "multer": "^1.4.5-lts.1",
+        "mysql2": "^3.6.5",
+        "node-fetch": "^2.7.0",
+        "path": "^0.12.7",
+        "sharp": "^0.34.3",
+        "ssh2": "^1.16.0"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC"
+}
