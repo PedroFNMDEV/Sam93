@@ -101,13 +101,29 @@ router.post('/', authMiddleware, async (req, res) => {
       [userId, nome, sanitizedName, caminhoServidor, serverId]
     );
 
+    console.log(`💾 Pasta criada no banco com ID: ${result.insertId}`);
+
     try {
+      // Garantir que estrutura do usuário existe primeiro
+      await SSHManager.createCompleteUserStructure(serverId, userLogin, {
+        bitrate: req.user.bitrate || 2500,
+        espectadores: req.user.espectadores || 100,
+        status_gravando: 'nao'
+      });
+      
+      console.log(`🏗️ Estrutura do usuário ${userLogin} garantida no servidor ${serverId}`);
+      
+      // Aguardar um pouco para garantir que estrutura foi criada
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       // Criar pasta no servidor de forma otimizada
       const folderCreationResult = await SSHManager.createUserFolder(serverId, userLogin, sanitizedName);
       
       if (!folderCreationResult.success) {
         throw new Error('Falha ao criar pasta no servidor');
       }
+      
+      console.log(`📁 Pasta ${sanitizedName} criada no servidor: ${folderCreationResult.folderPath}`);
       
     } catch (sshError) {
       console.error('Erro ao criar pasta no servidor:', sshError);
@@ -461,22 +477,7 @@ router.post('/:id/sync', authMiddleware, async (req, res) => {
 
     try {
       // Criar apenas a pasta específica (estrutura do usuário já deve existir)
-      // Garantir que estrutura do usuário existe primeiro
-      await SSHManager.createCompleteUserStructure(serverId, userLogin, {
-        bitrate: req.user.bitrate || 2500,
-        espectadores: req.user.espectadores || 100,
-        status_gravando: 'nao'
-      });
-      
-      // Aguardar um pouco para garantir que estrutura foi criada
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Agora criar a pasta específica
-      const folderResult = await SSHManager.createUserFolder(serverId, userLogin, folderName);
-      
-      if (!folderResult.success) {
-        throw new Error('Falha ao criar pasta no servidor');
-      }
+      await SSHManager.createUserFolder(serverId, userLogin, folderName);
       
       console.log(`✅ Pasta ${folderName} sincronizada`);
       

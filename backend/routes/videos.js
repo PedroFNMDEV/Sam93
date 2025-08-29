@@ -156,38 +156,22 @@ router.get('/', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const userLogin = req.user.email ? req.user.email.split('@')[0] : `user_${userId}`;
     const folderId = req.query.folder_id;
-    
     if (!folderId) {
       return res.status(400).json({ error: 'folder_id é obrigatório' });
     }
 
-    // Buscar dados da pasta na nova tabela folders
+    // Buscar dados da pasta
     const [folderRows] = await db.execute(
-      'SELECT nome_sanitizado, servidor_id, espaco_usado FROM folders WHERE id = ? AND user_id = ?',
+      'SELECT identificacao, codigo_servidor, espaco_usado FROM streamings WHERE codigo = ? AND codigo_cliente = ?',
       [folderId, userId]
     );
-    
     if (folderRows.length === 0) {
       return res.status(404).json({ error: 'Pasta não encontrada' });
     }
 
     const folderData = folderRows[0];
-    const folderName = folderData.nome_sanitizado;
-    const serverId = folderData.servidor_id || 1;
-    
-    console.log(`📁 Buscando vídeos na pasta: ${folderName} (ID: ${folderId}) no servidor ${serverId}`);
-    
-    // Garantir que estrutura do usuário existe
-    try {
-      await SSHManager.createCompleteUserStructure(serverId, userLogin, {
-        bitrate: req.user.bitrate || 2500,
-        espectadores: req.user.espectadores || 100,
-        status_gravando: 'nao'
-      });
-      
-      // Garantir que pasta específica existe
-      await SSHManager.createUserFolder(serverId, userLogin, folderName);
-    }
+    const folderName = folderRows[0].identificacao;
+    const serverId = folderData.codigo_servidor || 1;
     // Buscar vídeos na tabela videos usando pasta
     const [rows] = await db.execute(
       `SELECT 
@@ -211,8 +195,6 @@ router.get('/', authMiddleware, async (req, res) => {
        ORDER BY id DESC`,
       [userId, userId, folderId]
     );
-
-    console.log(`📊 Encontrados ${rows.length} vídeos no banco para pasta ${folderName}`);
 
     console.log(`📁 Buscando vídeos na pasta: ${folderName} (ID: ${folderId})`);
     console.log(`📊 Encontrados ${rows.length} vídeos no banco`);
@@ -271,7 +253,7 @@ router.get('/', authMiddleware, async (req, res) => {
     // Atualizar espaço usado da pasta se houve mudanças
     if (totalSizeUpdated > 0 && Math.abs(totalSizeUpdated - (folderData.espaco_usado || 0)) > 5) {
       await db.execute(
-        'UPDATE folders SET espaco_usado = ? WHERE id = ?',
+        'UPDATE streamings SET espaco_usado = ? WHERE codigo = ?',
         [totalSizeUpdated, folderId]
       );
       console.log(`📊 Espaço da pasta atualizado: ${totalSizeUpdated}MB`);
@@ -467,41 +449,53 @@ router.post('/upload', authMiddleware, upload.single('video'), async (req, res) 
     
     const tamanho = req.file.size;
 
-    const [userRows] = await db.execute(
-      `SELECT 
-        f.servidor_id, f.nome_sanitizado as folder_name,
-        u.espaco, f.espaco_usado
-       FROM folders f
-       LEFT JOIN streamings u ON f.user_id = u.codigo_cliente
-       WHERE f.id = ? AND f.user_id = ?`,
+    // Buscar dados da pasta na nova tabela folders
+    const [folderRows] = await db.execute(
+      'SELECT nome_sanitizado, servidor_id, espaco_usado FROM folders WHERE id = ? AND user_id = ?',
       [folderId, userId]
     );
-    if (userRows.length === 0) {
+    
+    if (folderRows.length === 0) {
       console.log(`❌ Pasta ${folderId} não encontrada para usuário ${userId}`);
+      await fs.unlink(req.file.path).catch(() => {});
       return res.status(404).json({ error: 'Pasta não encontrada' });
     }
-
+    
+    // Buscar dados do usuário para verificar espaço
+    const [userRows] = await db.execute(
+      'SELECT espaco FROM streamings WHERE codigo_cliente = ? LIMIT 1',
+      [userId]
+    );
+    
+    if (userRows.length === 0) {
+      console.log(`❌ Usuário ${userId} não encontrado`);
+      await fs.unlink(req.file.path).catch(() => {});
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+    
+    const folderData = folderRows[0];
     const userData = userRows[0];
-    const serverId = userData.servidor_id || 1;
-    const folderName = userData.folder_name;
-
+    const folderName = folderData.nome_sanitizado;
+    const serverId = folderData.servidor_id || 1;
+    
     console.log(`📁 Pasta encontrada: ${folderName}, Servidor: ${serverId}`);
-
+    
+    // Verificar espaço disponível
     const spaceMB = Math.ceil(tamanho / (1024 * 1024));
-    const availableSpace = userData.espaco - (userData.espaco_usado || 0);
+    const availableSpace = userData.espaco - (folderData.espaco_usado || 0);
 
     if (spaceMB > availableSpace) {
       console.log(`❌ Espaço insuficiente: ${spaceMB}MB necessário, ${availableSpace}MB disponível`);
-      await fs.unlink(req.file.path).catch(() => { });
+      await fs.unlink(req.file.path).catch(() => {});
       return res.status(400).json({
         error: `Espaço insuficiente. Necessário: ${spaceMB}MB, Disponível: ${availableSpace}MB`,
-        details: `Seu plano permite ${userData.espaco}MB de armazenamento. Atualmente você está usando ${userData.espaco_usado || 0}MB. Para enviar este arquivo, você precisa de mais ${spaceMB - availableSpace}MB livres.`,
+        details: `Seu plano permite ${userData.espaco}MB de armazenamento. Atualmente você está usando ${folderData.espaco_usado || 0}MB. Para enviar este arquivo, você precisa de mais ${spaceMB - availableSpace}MB livres.`,
         spaceInfo: {
           required: spaceMB,
           available: availableSpace,
           total: userData.espaco,
-          used: userData.espaco_usado || 0,
-          percentage: Math.round(((userData.espaco_usado || 0) / userData.espaco) * 100)
+          used: folderData.espaco_usado || 0,
+          percentage: Math.round(((folderData.espaco_usado || 0) / userData.espaco) * 100)
         }
       });
     }
@@ -513,10 +507,19 @@ router.post('/upload', authMiddleware, upload.single('video'), async (req, res) 
         espectadores: req.user.espectadores || 100,
         status_gravando: 'nao'
       });
+      
+      // Aguardar criação da estrutura
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       await SSHManager.createUserFolder(serverId, userLogin, folderName);
+      
+      // Aguardar criação da pasta
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Estrutura correta: /home/streaming/[usuario]/[pasta]/arquivo
       const remotePath = `/home/streaming/${userLogin}/${folderName}/${req.file.filename}`;
+      
+      console.log(`📤 Enviando arquivo para: ${remotePath}`);
       await SSHManager.uploadFile(serverId, req.file.path, remotePath);
       await fs.unlink(req.file.path);
 

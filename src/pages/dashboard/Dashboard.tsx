@@ -240,6 +240,16 @@ const Dashboard: React.FC = () => {
         <div className="relative z-10">
           <div className="flex items-center justify-between">
             <div>
+              <div className="mb-4 flex items-center">
+                <img 
+                  src="/logo.png" 
+                  alt="Logo" 
+                  className="w-12 h-12 rounded-xl mr-4 object-contain bg-white bg-opacity-20 p-2"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              </div>
               <h1 className="text-3xl font-bold mb-2">
                 Olá, {user?.nome || 'Usuário'}! 👋
               </h1>

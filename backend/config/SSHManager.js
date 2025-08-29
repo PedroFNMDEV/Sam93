@@ -18,6 +18,11 @@ class SSHManager {
     // Verificar se operação está em cooldown
     isOperationInCooldown(operationKey) {
         const lastExecution = this.operationQueue.get(operationKey);
+        // Desabilitar cooldown para operações críticas de criação de estrutura
+        if (operationKey.includes('createUserFolder') || operationKey.includes('createUserDirectory') || operationKey.includes('createCompleteUserStructure')) {
+            return false;
+        }
+        
         if (lastExecution && Date.now() - lastExecution < this.cooldownPeriod) {
             console.log(`⏳ Operação ${operationKey} em cooldown, ignorando...`);
             return true;
@@ -205,11 +210,10 @@ class SSHManager {
         try {
             // Verificar cooldown para criação de diretório
             const operationKey = this.generateOperationKey('createUserDirectory', serverId, userLogin);
-            // Remover cooldown para criação de diretórios críticos
-            // if (this.isOperationInCooldown(operationKey)) {
-            //   console.log(`⏭️ Pulando criação de diretório (cooldown): ${userLogin}`);
-            //   return { success: true, userDir: `/home/streaming/${userLogin}` };
-            // }
+            if (this.isOperationInCooldown(operationKey)) {
+                console.log(`⏭️ Pulando criação de diretório (cooldown): ${userLogin}`);
+                return { success: true, userDir: `/home/streaming/${userLogin}` };
+            }
 
             // Nova estrutura: /home/streaming/[usuario]
             const userDir = `/home/streaming/${userLogin}`;
@@ -257,11 +261,10 @@ class SSHManager {
         try {
             // Verificar cooldown para criação de pasta
             const operationKey = this.generateOperationKey('createUserFolder', serverId, userLogin, folderName);
-            // Remover cooldown para criação de pastas críticas
-            // if (this.isOperationInCooldown(operationKey)) {
-            //   console.log(`⏭️ Pulando criação de pasta (cooldown): ${folderName}`);
-            //   return { success: true, folderPath: `/home/streaming/${userLogin}/${folderName}` };
-            // }
+            if (this.isOperationInCooldown(operationKey)) {
+                console.log(`⏭️ Pulando criação de pasta (cooldown): ${folderName}`);
+                return { success: true, folderPath: `/home/streaming/${userLogin}/${folderName}` };
+            }
 
             // Estrutura correta: /home/streaming/[usuario]/[pasta]
             const folderPath = `/home/streaming/${userLogin}/${folderName}`;
@@ -314,14 +317,11 @@ class SSHManager {
         try {
             // Verificar cooldown para estrutura completa
             const operationKey = this.generateOperationKey('createCompleteUserStructure', serverId, userLogin);
-            // Verificar se estrutura já existe antes de criar
-            const userDir = `/home/streaming/${userLogin}`;
-            const dirExists = await this.checkDirectoryExists(serverId, userDir);
-            
-            if (dirExists) {
-              console.log(`✅ Estrutura já existe para usuário: ${userLogin}`);
-              return { success: true };
-            }
+            // Remover cooldown para operações críticas
+            // if (this.isOperationInCooldown(operationKey)) {
+            //   console.log(`⏭️ Pulando criação de estrutura completa (cooldown): ${userLogin}`);
+            //   return { success: true };
+            // }
 
             console.log(`🏗️ Criando estrutura completa para usuário: ${userLogin}`);
 
@@ -342,14 +342,13 @@ class SSHManager {
         try {
             // Verificar cooldown para verificação de estrutura
             const operationKey = this.generateOperationKey('checkCompleteUserStructure', serverId, userLogin);
-            // Sempre verificar estrutura real sem cooldown
-            // if (this.isOperationInCooldown(operationKey)) {
-            //   // Retornar resultado em cache se disponível
-            //   return {
-            //     streaming_directory: true,
-            //     complete: true
-            //   };
-            // }
+            if (this.isOperationInCooldown(operationKey)) {
+                // Retornar resultado em cache se disponível
+                return {
+                    streaming_directory: true,
+                    complete: true
+                };
+            }
 
             // Verificar estrutura de streaming
             const streamingPath = `/home/streaming/${userLogin}`;
