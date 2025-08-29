@@ -18,7 +18,17 @@ const AuthLayout: React.FC = () => {
           {/* Logo moderna */}
           <div className="mb-8 flex items-center justify-center">
             <div className="relative">
-              <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-2xl">
+              <img 
+                src="/logo.png" 
+                alt="Logo" 
+                className="w-20 h-20 rounded-2xl shadow-2xl object-contain bg-white p-2"
+                onError={(e) => {
+                  // Fallback para ícone se logo não carregar
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling.style.display = 'flex';
+                }}
+              />
+              <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-2xl" style={{ display: 'none' }}>
                 <Play className="h-10 w-10 text-white" />
               </div>
               <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
@@ -78,7 +88,17 @@ const AuthLayout: React.FC = () => {
           <div className="bg-white p-8 rounded-2xl shadow-2xl border border-gray-100">
             {/* Logo mobile */}
             <div className="flex justify-center mb-8 lg:hidden">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <img 
+                src="/logo.png" 
+                alt="Logo" 
+                className="w-16 h-16 rounded-2xl shadow-lg object-contain bg-white p-2"
+                onError={(e) => {
+                  // Fallback para ícone se logo não carregar
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling.style.display = 'flex';
+                }}
+              />
+              <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg" style={{ display: 'none' }}>
                 <Play className="h-8 w-8 text-white" />
               </div>
             </div>

@@ -156,22 +156,38 @@ router.get('/', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const userLogin = req.user.email ? req.user.email.split('@')[0] : `user_${userId}`;
     const folderId = req.query.folder_id;
+    
     if (!folderId) {
       return res.status(400).json({ error: 'folder_id é obrigatório' });
     }
 
-    // Buscar dados da pasta
+    // Buscar dados da pasta na nova tabela folders
     const [folderRows] = await db.execute(
-      'SELECT identificacao, codigo_servidor, espaco_usado FROM streamings WHERE codigo = ? AND codigo_cliente = ?',
+      'SELECT nome_sanitizado, servidor_id, espaco_usado FROM folders WHERE id = ? AND user_id = ?',
       [folderId, userId]
     );
+    
     if (folderRows.length === 0) {
       return res.status(404).json({ error: 'Pasta não encontrada' });
     }
 
     const folderData = folderRows[0];
-    const folderName = folderRows[0].identificacao;
-    const serverId = folderData.codigo_servidor || 1;
+    const folderName = folderData.nome_sanitizado;
+    const serverId = folderData.servidor_id || 1;
+    
+    console.log(`📁 Buscando vídeos na pasta: ${folderName} (ID: ${folderId}) no servidor ${serverId}`);
+    
+    // Garantir que estrutura do usuário existe
+    try {
+      await SSHManager.createCompleteUserStructure(serverId, userLogin, {
+        bitrate: req.user.bitrate || 2500,
+        espectadores: req.user.espectadores || 100,
+        status_gravando: 'nao'
+      });
+      
+      // Garantir que pasta específica existe
+      await SSHManager.createUserFolder(serverId, userLogin, folderName);
+    }
     // Buscar vídeos na tabela videos usando pasta
     const [rows] = await db.execute(
       `SELECT 
@@ -195,6 +211,8 @@ router.get('/', authMiddleware, async (req, res) => {
        ORDER BY id DESC`,
       [userId, userId, folderId]
     );
+
+    console.log(`📊 Encontrados ${rows.length} vídeos no banco para pasta ${folderName}`);
 
     console.log(`📁 Buscando vídeos na pasta: ${folderName} (ID: ${folderId})`);
     console.log(`📊 Encontrados ${rows.length} vídeos no banco`);
@@ -253,7 +271,7 @@ router.get('/', authMiddleware, async (req, res) => {
     // Atualizar espaço usado da pasta se houve mudanças
     if (totalSizeUpdated > 0 && Math.abs(totalSizeUpdated - (folderData.espaco_usado || 0)) > 5) {
       await db.execute(
-        'UPDATE streamings SET espaco_usado = ? WHERE codigo = ?',
+        'UPDATE folders SET espaco_usado = ? WHERE id = ?',
         [totalSizeUpdated, folderId]
       );
       console.log(`📊 Espaço da pasta atualizado: ${totalSizeUpdated}MB`);
